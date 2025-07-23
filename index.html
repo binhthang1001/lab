@@ -146,6 +146,7 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên Bài Báo</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tác Giả</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Năm</th>
+                                <!-- THAY ĐỔI 3: Thêm cột Danh mục vào bảng quản lý -->
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Danh mục</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Hành Động</th>
                             </tr>
@@ -314,7 +315,7 @@
                     listContainer.appendChild(yearHeader);
 
                     const pubsInYear = groupedByYear[year];
-                    // Sắp xếp bài báo trong cùng năm theo tên (alphabet)
+                    // THAY ĐỔI 2: Sắp xếp bài báo trong cùng năm theo tên (alphabet)
                     pubsInYear.sort((a, b) => (a.data().title || '').localeCompare(b.data().title || ''));
 
                     pubsInYear.forEach(doc => {
@@ -332,6 +333,7 @@
                         }).join(', ');
 
                         const titleLink = pub.link ? `<a href="${pub.link}" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:underline">${pub.title}</a>` : pub.title;
+                        // THAY ĐỔI 1: Hiển thị Tập (số) cùng với Tạp chí
                         const journalDisplay = pub.journal ? `<em class="italic">${pub.journal}${pub.volume ? `, ${pub.volume}` : ''}</em>.` : '';
 
                         item.innerHTML = `
@@ -370,6 +372,7 @@
                         <td class="px-6 py-4"><div class="text-sm font-medium text-gray-900">${pub.title}</div></td>
                         <td class="px-6 py-4"><div class="text-sm text-gray-600">${pub.authors}</div></td>
                         <td class="px-6 py-4"><div class="text-sm text-gray-600">${pub.year}</div></td>
+                        <!-- THAY ĐỔI 3: Thêm dữ liệu Danh mục vào bảng quản lý -->
                         <td class="px-6 py-4"><div class="text-sm text-gray-600">${pub.category}</div></td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <button class="edit-btn text-blue-600 hover:text-blue-900 mr-3" data-id="${doc.id}"><i data-lucide="file-pen-line" class="w-5 h-5"></i></button>
@@ -526,12 +529,3 @@
     </script>
 </body>
 </html>
-```
-
-Tôi đã thực hiện các điều chỉnh sau trong Canvas:
-
-1.  **Hiển thị "Tập (số)"**: Trong danh sách ở Trang Chủ, thông tin "Tập (số)" giờ sẽ được hiển thị ngay sau tên tạp chí (nếu có).
-2.  **Sắp xếp thứ cấp**: Các bài báo trong cùng một năm giờ đây sẽ được sắp xếp thêm theo thứ tự alphabet của tên bài báo, giúp danh sách có tổ chức hơn.
-3.  **Cải thiện Bảng Quản lý**: Tôi đã thêm cột "Danh mục" vào bảng ở trang quản lý, giúp bạn có cái nhìn tổng quan hơn về dữ liệu khi đang chỉnh sửa.
-
-Những thay đổi này sẽ giúp ứng dụng của bạn trở nên chuyên nghiệp và dễ sử dụng h
