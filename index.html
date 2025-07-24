@@ -146,7 +146,6 @@
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tên Bài Báo</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tác Giả</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Năm</th>
-                                <!-- THAY ĐỔI 3: Thêm cột Danh mục vào bảng quản lý -->
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Danh mục</th>
                                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Hành Động</th>
                             </tr>
@@ -160,372 +159,401 @@
         </div>
     </div>
 
-    <!-- Firebase và Logic ứng dụng -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, query, getDoc, getDocs, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    <!-- Tải các thư viện Firebase phiên bản tương thích (compat) -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
 
-        // --- CẤU HÌNH VÀ KHỞI TẠO ---
-        setLogLevel('debug');
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-publication-app';
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const auth = getAuth(app);
+    <!-- Toàn bộ logic ứng dụng được gói trong một thẻ script duy nhất -->
+    <script>
+        // Chạy toàn bộ mã sau khi trang đã tải xong
+        window.onload = function() {
+            // --- CẤU HÌNH VÀ KHỞI TẠO ---
+            // **ĐÃ THAY THẾ BẰNG CẤU HÌNH CỦA BẠN**
+            var firebaseConfig = {
+              apiKey: "AIzaSyC8OirviWwIl0PKN3EyweiXX40S3EULbN0",
+              authDomain: "ai-app-pubs.firebaseapp.com",
+              projectId: "ai-app-pubs",
+              storageBucket: "ai-app-pubs.appspot.com", // Sử dụng .appspot.com để tương thích tốt hơn
+              messagingSenderId: "935991906705",
+              appId: "1:935991906705:web:cb39304f8c5562f7c3ca30"
+            };
+            
+            // Sử dụng một ID cố định cho đường dẫn Firestore
+            var appId = 'ai-app-pubs';
 
-        // --- THAM CHIẾU ĐẾN CÁC THÀNH PHẦN GIAO DIỆN ---
-        const homepageView = document.getElementById('homepage-view');
-        const managementView = document.getElementById('management-view');
-        const goToManageBtn = document.getElementById('go-to-manage-btn');
-        const goToHomeBtn = document.getElementById('go-to-home-btn');
-        const manageAccessContainer = document.getElementById('manage-access-container');
-        const passwordPromptContainer = document.getElementById('password-prompt-container');
-        const submitPasswordBtn = document.getElementById('submit-password-btn');
-        const passwordInput = document.getElementById('password-input');
-        const passwordError = document.getElementById('password-error');
-        const downloadCsvBtn = document.getElementById('download-csv-btn');
+            firebase.initializeApp(firebaseConfig);
+            var db = firebase.firestore();
+            var auth = firebase.auth();
 
-        // --- LOGIC CHUYỂN ĐỔI GIAO DIỆN & MẬT KHẨU ---
-        function showHomepage() {
-            homepageView.classList.remove('hidden-view');
-            managementView.classList.add('hidden-view');
-        }
+            // --- THAM CHIẾU ĐẾN CÁC THÀNH PHẦN GIAO DIỆN ---
+            var homepageView = document.getElementById('homepage-view');
+            var managementView = document.getElementById('management-view');
+            var goToManageBtn = document.getElementById('go-to-manage-btn');
+            var goToHomeBtn = document.getElementById('go-to-home-btn');
+            var manageAccessContainer = document.getElementById('manage-access-container');
+            var passwordPromptContainer = document.getElementById('password-prompt-container');
+            var submitPasswordBtn = document.getElementById('submit-password-btn');
+            var passwordInput = document.getElementById('password-input');
+            var passwordError = document.getElementById('password-error');
+            var downloadCsvBtn = document.getElementById('download-csv-btn');
 
-        function showManagementPage() {
-            homepageView.classList.add('hidden-view');
-            managementView.classList.remove('hidden-view');
-        }
-
-        goToManageBtn.addEventListener('click', () => {
-            manageAccessContainer.classList.add('hidden-view');
-            passwordPromptContainer.classList.remove('hidden-view');
-            passwordInput.focus();
-        });
-
-        const handlePasswordSubmit = () => {
-            if (passwordInput.value === '1001') {
-                passwordError.textContent = '';
-                passwordInput.value = ''; 
-                manageAccessContainer.classList.remove('hidden-view');
-                passwordPromptContainer.classList.add('hidden-view');
-                showManagementPage();
-            } else {
-                passwordError.textContent = 'Mật khẩu không chính xác.';
-                passwordInput.value = '';
+            // --- LOGIC CHUYỂN ĐỔI GIAO DIỆN & MẬT KHẨU ---
+            function showHomepage() {
+                homepageView.classList.remove('hidden-view');
+                managementView.classList.add('hidden-view');
             }
-        };
 
-        submitPasswordBtn.addEventListener('click', handlePasswordSubmit);
-        passwordInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') handlePasswordSubmit();
-        });
-
-        goToHomeBtn.addEventListener('click', showHomepage);
-
-        // --- LOGIC FIREBASE ---
-        let publicationsCollectionRef = null;
-
-        const seedData = [
-            { title: 'A novel approach to machine learning in bioinformatics', authors: 'Binh Thang Tran, Nguyen Van A', journal: 'Journal of Computer Science', volume: '15(2)', year: '2025', category: 'WoS', role: 'Tác giả chính', link: '#' },
-            { title: 'The impact of AI on modern agriculture', authors: 'Le Thi B, Trần Bình Thắng', journal: 'International Agriculture Review', volume: '8(4)', year: '2025', category: 'SCOPUS', role: 'Đồng tác giả', link: '#' },
-            { title: 'Data Structures and Their Applications', authors: 'Pham Van C, Nguyen Thi D', journal: 'Tech Journal', volume: '22', year: '2024', category: 'Khác', role: 'Đồng tác giả', link: '#' },
-            { title: 'Exploring the Vietnamese linguistic model', authors: 'Trần Bình Thắng', journal: 'Linguistics Today', volume: '5(1)', year: '2024', category: 'WoS/SCOPUS', role: 'Tác giả chính', link: '#' }
-        ];
-
-        async function seedInitialData() {
-            if (!publicationsCollectionRef) return;
-            const snapshot = await getDocs(query(publicationsCollectionRef));
-            if (snapshot.empty) {
-                console.log('No data found. Seeding initial publications...');
-                for (const pub of seedData) await addDoc(publicationsCollectionRef, pub);
-            } else {
-                console.log('Data already exists. Skipping seed.');
+            function showManagementPage() {
+                homepageView.classList.add('hidden-view');
+                managementView.classList.remove('hidden-view');
             }
-        }
 
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                document.getElementById('user-info').textContent = `UserID: ${user.uid}`;
-                publicationsCollectionRef = collection(db, `artifacts/${appId}/public/data/publications`);
-                await seedInitialData();
-                listenForHomepageData();
-                listenForManagementData();
-            } else {
-                try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
+            goToManageBtn.addEventListener('click', function() {
+                manageAccessContainer.classList.add('hidden-view');
+                passwordPromptContainer.classList.remove('hidden-view');
+                passwordInput.focus();
+            });
+
+            var handlePasswordSubmit = function() {
+                if (passwordInput.value === '1001') {
+                    passwordError.textContent = '';
+                    passwordInput.value = ''; 
+                    manageAccessContainer.classList.remove('hidden-view');
+                    passwordPromptContainer.classList.add('hidden-view');
+                    showManagementPage();
+                } else {
+                    passwordError.textContent = 'Mật khẩu không chính xác.';
+                    passwordInput.value = '';
+                }
+            };
+
+            submitPasswordBtn.addEventListener('click', handlePasswordSubmit);
+            passwordInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') handlePasswordSubmit();
+            });
+
+            goToHomeBtn.addEventListener('click', showHomepage);
+
+            // --- LOGIC FIREBASE ---
+            var publicationsCollectionRef = null;
+
+            var seedData = [
+                { title: 'A novel approach to machine learning in bioinformatics', authors: 'Binh Thang Tran, Nguyen Van A', journal: 'Journal of Computer Science', volume: '15(2)', year: '2025', category: 'WoS', role: 'Tác giả chính', link: '#' },
+                { title: 'The impact of AI on modern agriculture', authors: 'Le Thi B, Trần Bình Thắng', journal: 'International Agriculture Review', volume: '8(4)', year: '2025', category: 'SCOPUS', role: 'Đồng tác giả', link: '#' },
+                { title: 'Data Structures and Their Applications', authors: 'Pham Van C, Nguyen Thi D', journal: 'Tech Journal', volume: '22', year: '2024', category: 'Khác', role: 'Đồng tác giả', link: '#' },
+                { title: 'Exploring the Vietnamese linguistic model', authors: 'Trần Bình Thắng', journal: 'Linguistics Today', volume: '5(1)', year: '2024', category: 'WoS/SCOPUS', role: 'Tác giả chính', link: '#' }
+            ];
+            
+            function mainApp() {
+                var authPromise;
+                if (auth.currentUser) {
+                    authPromise = Promise.resolve({ user: auth.currentUser });
+                } else {
+                    authPromise = auth.signInAnonymously();
+                }
+
+                authPromise.then(function(userCredential) {
+                    var user = userCredential.user;
+                    console.log("Authenticated with UserID:", user.uid);
+                    document.getElementById('user-info').textContent = 'UserID: ' + user.uid;
+                    publicationsCollectionRef = db.collection('artifacts/' + appId + '/public/data/publications');
+                    
+                    return seedInitialData();
+                }).then(function() {
+                    console.log("Initialization complete. Setting up listeners.");
+                    listenForHomepageData();
+                    listenForManagementData();
+                }).catch(function(error) {
+                    console.error("Lỗi khởi tạo ứng dụng hoặc xác thực:", error);
+                    var listContainer = document.getElementById('publication-list');
+                    if(listContainer) {
+                        listContainer.innerHTML = '<p class="text-center py-10 text-red-500">Không thể tải ứng dụng. Vui lòng kiểm tra kết nối và thử lại.</p>';
                     }
-                } catch (error) {
-                    console.error("Lỗi đăng nhập:", error);
-                }
-            }
-        });
-
-        // Lắng nghe và hiển thị dữ liệu cho Trang Chủ
-        function listenForHomepageData() {
-            if (!publicationsCollectionRef) return;
-            const listContainer = document.getElementById('publication-list');
-            const statsContainer = document.getElementById('stats-container');
-
-            onSnapshot(query(publicationsCollectionRef), (snapshot) => {
-                listContainer.innerHTML = '';
-                
-                if (snapshot.empty) {
-                    listContainer.innerHTML = `<p class="text-center py-10 text-gray-500">Chưa có ấn phẩm nào.</p>`;
-                    statsContainer.innerHTML = `<p class="text-center text-gray-500">Chưa có dữ liệu để thống kê.</p>`;
-                    return;
-                }
-
-                const allDocs = [...snapshot.docs];
-
-                const stats = { 'WoS': 0, 'SCOPUS': 0, 'WoS/SCOPUS': 0, 'Khác': 0, 'Total': 0 };
-                allDocs.forEach(doc => {
-                    const pub = doc.data();
-                    if (pub.category && stats.hasOwnProperty(pub.category)) stats[pub.category]++;
-                    stats.Total++;
                 });
+            }
 
-                statsContainer.innerHTML = `
-                    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
-                        <div class="p-4 bg-gray-50 rounded-lg"><h3 class="text-sm sm:text-base font-semibold text-gray-500 uppercase">TỔNG SỐ</h3><p class="text-4xl sm:text-5xl font-bold text-gray-800">${stats.Total}</p></div>
-                        <div class="p-4 bg-blue-50 rounded-lg"><h3 class="text-sm sm:text-base font-semibold text-blue-500 uppercase">WoS</h3><p class="text-4xl sm:text-5xl font-bold text-blue-600">${stats.WoS}</p></div>
-                        <div class="p-4 bg-green-50 rounded-lg"><h3 class="text-sm sm:text-base font-semibold text-green-500 uppercase">SCOPUS</h3><p class="text-4xl sm:text-5xl font-bold text-green-600">${stats.SCOPUS}</p></div>
-                        <div class="p-4 bg-purple-50 rounded-lg"><h3 class="text-sm sm:text-base font-semibold text-purple-500 uppercase">WoS/SCOPUS</h3><p class="text-4xl sm:text-5xl font-bold text-purple-600">${stats['WoS/SCOPUS']}</p></div>
-                        <div class="p-4 bg-yellow-50 rounded-lg"><h3 class="text-sm sm:text-base font-semibold text-yellow-500 uppercase">KHÁC</h3><p class="text-4xl sm:text-5xl font-bold text-yellow-600">${stats['Khác']}</p></div>
-                    </div>
-                `;
+            function seedInitialData() {
+                return new Promise(function(resolve, reject) {
+                    if (!publicationsCollectionRef) {
+                        resolve();
+                        return;
+                    }
+                    publicationsCollectionRef.get().then(function(snapshot) {
+                        if (snapshot.empty) {
+                            console.log('No data found. Seeding initial publications...');
+                            var addPromises = seedData.map(function(pub) {
+                                return publicationsCollectionRef.add(pub);
+                            });
+                            Promise.all(addPromises).then(resolve).catch(reject);
+                        } else {
+                            console.log('Data already exists. Skipping seed.');
+                            resolve();
+                        }
+                    }).catch(reject);
+                });
+            }
 
-                const groupedByYear = allDocs.reduce((acc, doc) => {
-                    const year = doc.data().year || 'Chưa rõ';
-                    if (!acc[year]) acc[year] = [];
-                    acc[year].push(doc);
-                    return acc;
-                }, {});
+            // Start the application
+            mainApp();
 
-                const sortedYears = Object.keys(groupedByYear).sort((a, b) => b - a);
-                
-                let counter = 1;
-                sortedYears.forEach(year => {
-                    const yearHeader = document.createElement('h2');
-                    yearHeader.className = 'text-2xl font-bold mt-8 mb-2 border-b pb-2';
-                    yearHeader.textContent = `Năm ${year}`;
-                    listContainer.appendChild(yearHeader);
+            // Lắng nghe và hiển thị dữ liệu cho Trang Chủ
+            function listenForHomepageData() {
+                if (!publicationsCollectionRef) return;
+                var listContainer = document.getElementById('publication-list');
+                var statsContainer = document.getElementById('stats-container');
 
-                    const pubsInYear = groupedByYear[year];
-                    // THAY ĐỔI 2: Sắp xếp bài báo trong cùng năm theo tên (alphabet)
-                    pubsInYear.sort((a, b) => (a.data().title || '').localeCompare(b.data().title || ''));
+                publicationsCollectionRef.onSnapshot(function(snapshot) {
+                    listContainer.innerHTML = '';
+                    
+                    if (snapshot.empty) {
+                        listContainer.innerHTML = '<p class="text-center py-10 text-gray-500">Chưa có ấn phẩm nào.</p>';
+                        statsContainer.innerHTML = '<p class="text-center text-gray-500">Chưa có dữ liệu để thống kê.</p>';
+                        return;
+                    }
 
-                    pubsInYear.forEach(doc => {
-                        const pub = doc.data();
-                        const item = document.createElement('div');
-                        item.className = 'text-base leading-relaxed flex items-start';
-                        
-                        const authorsString = pub.authors || '';
-                        const authorsHtml = authorsString.split(',').map(name => {
-                            const trimmedName = name.trim();
-                            if (trimmedName === 'Trần Bình Thắng' || trimmedName === 'Binh Thang Tran') {
-                                return `<strong class="font-bold text-red-800">${trimmedName}</strong>`;
-                            }
-                            return trimmedName;
-                        }).join(', ');
+                    var allDocs = [];
+                    snapshot.forEach(function(doc){ allDocs.push(doc); });
 
-                        const titleLink = pub.link ? `<a href="${pub.link}" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:underline">${pub.title}</a>` : pub.title;
-                        // THAY ĐỔI 1: Hiển thị Tập (số) cùng với Tạp chí
-                        const journalDisplay = pub.journal ? `<em class="italic">${pub.journal}${pub.volume ? `, ${pub.volume}` : ''}</em>.` : '';
+                    var stats = { 'WoS': 0, 'SCOPUS': 0, 'WoS/SCOPUS': 0, 'Khác': 0, 'Total': 0 };
+                    allDocs.forEach(function(doc) {
+                        var pub = doc.data();
+                        if (pub.category && stats.hasOwnProperty(pub.category)) stats[pub.category]++;
+                        stats.Total++;
+                    });
 
-                        item.innerHTML = `
-                            <span class="mr-3 text-gray-500">${counter}.</span>
-                            <p>
-                                ${authorsHtml}
-                                (${pub.year || 'N/A'}). 
-                                ${titleLink}. 
-                                ${journalDisplay}
-                                <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded">${pub.category || ''}</span>.
-                                <strong class="font-bold text-gray-800">${pub.role || ''}</strong>
-                            </p>
-                        `;
-                        listContainer.appendChild(item);
-                        counter++;
+                    statsContainer.innerHTML = [
+                        '<div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">',
+                            '<div class="p-4 bg-gray-50 rounded-lg"><h3 class="text-sm sm:text-base font-semibold text-gray-500 uppercase">TỔNG SỐ</h3><p class="text-4xl sm:text-5xl font-bold text-gray-800">' + stats.Total + '</p></div>',
+                            '<div class="p-4 bg-blue-50 rounded-lg"><h3 class="text-sm sm:text-base font-semibold text-blue-500 uppercase">WoS</h3><p class="text-4xl sm:text-5xl font-bold text-blue-600">' + stats.WoS + '</p></div>',
+                            '<div class="p-4 bg-green-50 rounded-lg"><h3 class="text-sm sm:text-base font-semibold text-green-500 uppercase">SCOPUS</h3><p class="text-4xl sm:text-5xl font-bold text-green-600">' + stats.SCOPUS + '</p></div>',
+                            '<div class="p-4 bg-purple-50 rounded-lg"><h3 class="text-sm sm:text-base font-semibold text-purple-500 uppercase">WoS/SCOPUS</h3><p class="text-4xl sm:text-5xl font-bold text-purple-600">' + stats['WoS/SCOPUS'] + '</p></div>',
+                            '<div class="p-4 bg-yellow-50 rounded-lg"><h3 class="text-sm sm:text-base font-semibold text-yellow-500 uppercase">KHÁC</h3><p class="text-4xl sm:text-5xl font-bold text-yellow-600">' + stats['Khác'] + '</p></div>',
+                        '</div>'
+                    ].join('');
+
+                    var groupedByYear = allDocs.reduce(function(acc, doc) {
+                        var year = doc.data().year || 'Chưa rõ';
+                        if (!acc[year]) acc[year] = [];
+                        acc[year].push(doc);
+                        return acc;
+                    }, {});
+
+                    var sortedYears = Object.keys(groupedByYear).sort(function(a, b) { return b - a; });
+                    
+                    var counter = 1;
+                    sortedYears.forEach(function(year) {
+                        var yearHeader = document.createElement('h2');
+                        yearHeader.className = 'text-2xl font-bold mt-8 mb-2 border-b pb-2';
+                        yearHeader.textContent = 'Năm ' + year;
+                        listContainer.appendChild(yearHeader);
+
+                        var pubsInYear = groupedByYear[year];
+                        pubsInYear.sort(function(a, b) { return (a.data().title || '').localeCompare(b.data().title || ''); });
+
+                        pubsInYear.forEach(function(doc) {
+                            var pub = doc.data();
+                            var item = document.createElement('div');
+                            item.className = 'text-base leading-relaxed flex items-start';
+                            
+                            var authorsString = pub.authors || '';
+                            var authorsHtml = authorsString.split(',').map(function(name) {
+                                var trimmedName = name.trim();
+                                if (trimmedName === 'Trần Bình Thắng' || trimmedName === 'Binh Thang Tran') {
+                                    return '<strong class="font-bold text-red-800">' + trimmedName + '</strong>';
+                                }
+                                return trimmedName;
+                            }).join(', ');
+
+                            var titleLink = pub.link ? '<a href="' + pub.link + '" target="_blank" rel="noopener noreferrer" class="text-blue-700 hover:underline">' + pub.title + '</a>' : pub.title;
+                            var journalDisplay = pub.journal ? '<em class="italic">' + pub.journal + (pub.volume ? ', ' + pub.volume : '') + '</em>.' : '';
+
+                            item.innerHTML = [
+                                '<span class="mr-3 text-gray-500">' + counter + '.</span>',
+                                '<p>',
+                                    authorsHtml,
+                                    '(' + (pub.year || 'N/A') + '). ',
+                                    titleLink + '. ',
+                                    journalDisplay,
+                                    ' <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded">' + (pub.category || '') + '</span>. ',
+                                    '<strong class="font-bold text-gray-800">' + (pub.role || '') + '</strong>',
+                                '</p>'
+                            ].join('');
+                            listContainer.appendChild(item);
+                            counter++;
+                        });
                     });
                 });
-            });
-        }
+            }
 
-        // Lắng nghe và hiển thị dữ liệu cho Trang Quản Lý
-        function listenForManagementData() {
-            if (!publicationsCollectionRef) return;
-            const tableBody = document.getElementById('publication-table-body');
-            onSnapshot(query(publicationsCollectionRef), (snapshot) => {
-                tableBody.innerHTML = '';
-                if (snapshot.empty) {
-                     tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-gray-500">Chưa có ấn phẩm nào.</td></tr>`;
-                }
-                const sortedDocs = [...snapshot.docs].sort((a, b) => (parseInt(b.data().year, 10) || 0) - (parseInt(a.data().year, 10) || 0));
-                
-                sortedDocs.forEach(doc => {
-                    const pub = doc.data();
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td class="px-6 py-4"><div class="text-sm font-medium text-gray-900">${pub.title}</div></td>
-                        <td class="px-6 py-4"><div class="text-sm text-gray-600">${pub.authors}</div></td>
-                        <td class="px-6 py-4"><div class="text-sm text-gray-600">${pub.year}</div></td>
-                        <!-- THAY ĐỔI 3: Thêm dữ liệu Danh mục vào bảng quản lý -->
-                        <td class="px-6 py-4"><div class="text-sm text-gray-600">${pub.category}</div></td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button class="edit-btn text-blue-600 hover:text-blue-900 mr-3" data-id="${doc.id}"><i data-lucide="file-pen-line" class="w-5 h-5"></i></button>
-                            <button class="delete-btn text-red-600 hover:text-red-900" data-id="${doc.id}"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
-                        </td>
-                    `;
-                    tableBody.appendChild(row);
+            // Lắng nghe và hiển thị dữ liệu cho Trang Quản Lý
+            function listenForManagementData() {
+                if (!publicationsCollectionRef) return;
+                var tableBody = document.getElementById('publication-table-body');
+                publicationsCollectionRef.onSnapshot(function(snapshot) {
+                    tableBody.innerHTML = '';
+                    if (snapshot.empty) {
+                         tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-gray-500">Chưa có ấn phẩm nào.</td></tr>';
+                    }
+                    var sortedDocs = [];
+                    snapshot.forEach(function(doc){ sortedDocs.push(doc); });
+                    sortedDocs.sort(function(a, b) { return (parseInt(b.data().year, 10) || 0) - (parseInt(a.data().year, 10) || 0); });
+                    
+                    sortedDocs.forEach(function(doc) {
+                        var pub = doc.data();
+                        var row = document.createElement('tr');
+                        row.innerHTML = [
+                            '<td class="px-6 py-4"><div class="text-sm font-medium text-gray-900">' + pub.title + '</div></td>',
+                            '<td class="px-6 py-4"><div class="text-sm text-gray-600">' + pub.authors + '</div></td>',
+                            '<td class="px-6 py-4"><div class="text-sm text-gray-600">' + pub.year + '</div></td>',
+                            '<td class="px-6 py-4"><div class="text-sm text-gray-600">' + pub.category + '</div></td>',
+                            '<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">',
+                                '<button class="edit-btn text-blue-600 hover:text-blue-900 mr-3" data-id="' + doc.id + '"><i data-lucide="file-pen-line" class="w-5 h-5"></i></button>',
+                                '<button class="delete-btn text-red-600 hover:text-red-900" data-id="' + doc.id + '"><i data-lucide="trash-2" class="w-5 h-5"></i></button>',
+                            '</td>'
+                        ].join('');
+                        tableBody.appendChild(row);
+                    });
+                    lucide.createIcons();
                 });
-                lucide.createIcons();
-            });
-        }
+            }
 
-        // --- LOGIC FORM QUẢN LÝ (Thêm, Sửa, Xóa) ---
-        const publicationForm = document.getElementById('publication-form');
-        const formTitle = document.getElementById('form-title');
-        const submitBtn = document.getElementById('submit-btn');
-        const cancelBtn = document.getElementById('cancel-edit-btn');
-        const publicationIdInput = document.getElementById('publication-id');
+            // --- LOGIC FORM QUẢN LÝ (Thêm, Sửa, Xóa) ---
+            var publicationForm = document.getElementById('publication-form');
+            var formTitle = document.getElementById('form-title');
+            var submitBtn = document.getElementById('submit-btn');
+            var cancelBtn = document.getElementById('cancel-edit-btn');
+            var publicationIdInput = document.getElementById('publication-id');
 
-        publicationForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!publicationsCollectionRef) return;
-            const publicationData = {
-                title: document.getElementById('publication-title').value,
-                authors: document.getElementById('publication-authors').value,
-                journal: document.getElementById('publication-journal').value,
-                volume: document.getElementById('publication-volume').value,
-                year: document.getElementById('publication-year').value,
-                category: document.getElementById('publication-category').value,
-                role: document.getElementById('publication-role').value,
-                link: document.getElementById('publication-link').value,
-            };
-            const id = publicationIdInput.value;
-            try {
+            publicationForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                if (!publicationsCollectionRef) return;
+                var publicationData = {
+                    title: document.getElementById('publication-title').value,
+                    authors: document.getElementById('publication-authors').value,
+                    journal: document.getElementById('publication-journal').value,
+                    volume: document.getElementById('publication-volume').value,
+                    year: document.getElementById('publication-year').value,
+                    category: document.getElementById('publication-category').value,
+                    role: document.getElementById('publication-role').value,
+                    link: document.getElementById('publication-link').value,
+                };
+                var id = publicationIdInput.value;
                 if (id) {
-                    await updateDoc(doc(publicationsCollectionRef, id), publicationData);
+                    publicationsCollectionRef.doc(id).update(publicationData).then(resetForm).catch(function(err){ console.error("Lỗi khi cập nhật: ", err); });
                 } else {
-                    await addDoc(publicationsCollectionRef, publicationData);
+                    publicationsCollectionRef.add(publicationData).then(resetForm).catch(function(err){ console.error("Lỗi khi thêm: ", err); });
                 }
-                resetForm();
-            } catch (error) {
-                console.error("Lỗi khi lưu dữ liệu: ", error);
-            }
-        });
+            });
 
-        document.getElementById('management-view').addEventListener('click', async (e) => {
-            const button = e.target.closest('button.edit-btn, button.delete-btn');
-            if (!button || !publicationsCollectionRef) return;
+            document.getElementById('management-view').addEventListener('click', function(e) {
+                var button = e.target.closest('button.edit-btn, button.delete-btn');
+                if (!button || !publicationsCollectionRef) return;
 
-            const id = button.dataset.id;
-            const docRef = doc(publicationsCollectionRef, id);
+                var id = button.dataset.id;
+                var docRef = publicationsCollectionRef.doc(id);
 
-            if (button.classList.contains('delete-btn')) {
-                if (confirm('Bạn có chắc chắn muốn xóa ấn phẩm này không?')) {
-                    await deleteDoc(docRef);
+                if (button.classList.contains('delete-btn')) {
+                    if (confirm('Bạn có chắc chắn muốn xóa ấn phẩm này không?')) {
+                        docRef.delete();
+                    }
+                } else if (button.classList.contains('edit-btn')) {
+                    docRef.get().then(function(doc) {
+                        if (doc.exists) {
+                            var data = doc.data();
+                            publicationIdInput.value = id;
+                            document.getElementById('publication-title').value = data.title || '';
+                            document.getElementById('publication-authors').value = data.authors || '';
+                            document.getElementById('publication-journal').value = data.journal || '';
+                            document.getElementById('publication-volume').value = data.volume || '';
+                            document.getElementById('publication-year').value = data.year || '';
+                            document.getElementById('publication-category').value = data.category || 'Khác';
+                            document.getElementById('publication-role').value = data.role || 'Tác giả chính';
+                            document.getElementById('publication-link').value = data.link || '';
+
+                            formTitle.textContent = 'Chỉnh Sửa Ấn Phẩm';
+                            submitBtn.textContent = 'Cập Nhật';
+                            submitBtn.classList.remove('bg-blue-600');
+                            submitBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+                            cancelBtn.classList.remove('hidden');
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                    });
                 }
-            } else if (button.classList.contains('edit-btn')) {
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    publicationIdInput.value = id;
-                    document.getElementById('publication-title').value = data.title || '';
-                    document.getElementById('publication-authors').value = data.authors || '';
-                    document.getElementById('publication-journal').value = data.journal || '';
-                    document.getElementById('publication-volume').value = data.volume || '';
-                    document.getElementById('publication-year').value = data.year || '';
-                    document.getElementById('publication-category').value = data.category || 'Khác';
-                    document.getElementById('publication-role').value = data.role || 'Tác giả chính';
-                    document.getElementById('publication-link').value = data.link || '';
+            });
 
-                    formTitle.textContent = 'Chỉnh Sửa Ấn Phẩm';
-                    submitBtn.textContent = 'Cập Nhật';
-                    submitBtn.classList.remove('bg-blue-600');
-                    submitBtn.classList.add('bg-green-600', 'hover:bg-green-700');
-                    cancelBtn.classList.remove('hidden');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
+            function resetForm() {
+                publicationForm.reset();
+                publicationIdInput.value = '';
+                formTitle.textContent = 'Thêm Ấn Phẩm Mới';
+                submitBtn.textContent = 'Thêm Ấn Phẩm';
+                submitBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                submitBtn.classList.add('bg-blue-600');
+                cancelBtn.classList.add('hidden');
             }
-        });
-
-        function resetForm() {
-            publicationForm.reset();
-            publicationIdInput.value = '';
-            formTitle.textContent = 'Thêm Ấn Phẩm Mới';
-            submitBtn.textContent = 'Thêm Ấn Phẩm';
-            submitBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
-            submitBtn.classList.add('bg-blue-600');
-            cancelBtn.classList.add('hidden');
-        }
-        cancelBtn.addEventListener('click', resetForm);
-        
-        // --- LOGIC TẢI CSV ---
-        const downloadCSV = async () => {
-            if (!publicationsCollectionRef) {
-                alert("Chưa kết nối tới cơ sở dữ liệu.");
-                return;
-            }
-            try {
-                const snapshot = await getDocs(query(publicationsCollectionRef));
-                if (snapshot.empty) {
-                    alert("Không có dữ liệu để tải về.");
+            cancelBtn.addEventListener('click', resetForm);
+            
+            // --- LOGIC TẢI CSV ---
+            var downloadCSV = function() {
+                if (!publicationsCollectionRef) {
+                    alert("Chưa kết nối tới cơ sở dữ liệu.");
                     return;
                 }
-
-                const headers = ["Tên bài báo", "Tên tác giả", "Tạp chí", "Tập (số)", "Năm", "Danh mục", "Vai trò", "Đường dẫn"];
-                
-                const escapeCsvCell = (cell) => {
-                    if (cell === null || cell === undefined) return '';
-                    const strCell = String(cell);
-                    if (strCell.includes(',') || strCell.includes('"') || strCell.includes('\n')) {
-                        return `"${strCell.replace(/"/g, '""')}"`;
+                publicationsCollectionRef.get().then(function(snapshot) {
+                    if (snapshot.empty) {
+                        alert("Không có dữ liệu để tải về.");
+                        return;
                     }
-                    return strCell;
-                };
 
-                const csvRows = [headers.join(',')];
-                snapshot.forEach(doc => {
-                    const data = doc.data();
-                    const row = [
-                        escapeCsvCell(data.title),
-                        escapeCsvCell(data.authors),
-                        escapeCsvCell(data.journal),
-                        escapeCsvCell(data.volume),
-                        escapeCsvCell(data.year),
-                        escapeCsvCell(data.category),
-                        escapeCsvCell(data.role),
-                        escapeCsvCell(data.link)
-                    ];
-                    csvRows.push(row.join(','));
+                    var headers = ["Tên bài báo", "Tên tác giả", "Tạp chí", "Tập (số)", "Năm", "Danh mục", "Vai trò", "Đường dẫn"];
+                    
+                    var escapeCsvCell = function(cell) {
+                        if (cell === null || cell === undefined) return '';
+                        var strCell = String(cell);
+                        if (strCell.includes(',') || strCell.includes('"') || strCell.includes('\n')) {
+                            return '"' + strCell.replace(/"/g, '""') + '"';
+                        }
+                        return strCell;
+                    };
+
+                    var csvRows = [headers.join(',')];
+                    snapshot.forEach(function(doc) {
+                        var data = doc.data();
+                        var row = [
+                            escapeCsvCell(data.title),
+                            escapeCsvCell(data.authors),
+                            escapeCsvCell(data.journal),
+                            escapeCsvCell(data.volume),
+                            escapeCsvCell(data.year),
+                            escapeCsvCell(data.category),
+                            escapeCsvCell(data.role),
+                            escapeCsvCell(data.link)
+                        ];
+                        csvRows.push(row.join(','));
+                    });
+
+                    var csvString = csvRows.join('\n');
+                    var blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
+                    
+                    var link = document.createElement("a");
+                    var url = URL.createObjectURL(blob);
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", "danh-sach-an-pham.csv");
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }).catch(function(error) {
+                    console.error("Lỗi khi tải file CSV:", error);
+                    alert("Đã xảy ra lỗi khi tải file.");
                 });
+            };
 
-                const csvString = csvRows.join('\n');
-                const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' });
-                
-                const link = document.createElement("a");
-                const url = URL.createObjectURL(blob);
-                link.setAttribute("href", url);
-                link.setAttribute("download", "danh-sach-an-pham.csv");
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+            downloadCsvBtn.addEventListener('click', downloadCSV);
 
-            } catch (error) {
-                console.error("Lỗi khi tải file CSV:", error);
-                alert("Đã xảy ra lỗi khi tải file.");
-            }
+            // Khởi tạo icons
+            lucide.createIcons();
         };
-
-        downloadCsvBtn.addEventListener('click', downloadCSV);
-
-        // Khởi tạo icons
-        lucide.createIcons();
     </script>
 </body>
 </html>
