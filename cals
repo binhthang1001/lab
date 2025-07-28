@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tính Prevalence Odds Ratio</title>
+    
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #0056b3;
+            border-bottom: 2px solid #eef;
+            padding-bottom: 10px;
+        }
+        .input-section, .results-section {
+            margin-bottom: 25px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input[type="number"], input[type="text"], select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            box-sizing: border-box; /* Quan trọng để padding không làm thay đổi width */
+        }
+        .group-inputs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            padding: 15px;
+            border: 1px dashed #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>📊 Tính Prevalence Odds Ratio (OR)</h1>
+        
+        <div class="input-section">
+            <h2>1. Nhập Dữ Liệu</h2>
+            <div class="form-group">
+                <label for="numGroups">Bạn muốn so sánh bao nhiêu nhóm?</label>
+                <input type="number" id="numGroups" value="3" min="2">
+            </div>
+
+            <div id="dynamicInputContainer"></div>
+            
+            <div class="form-group" style="margin-top: 20px;">
+                <button id="calculateBtn">Tính toán OR</button>
+            </div>
+        </div>
+
+        <div class="results-section" id="resultsContainer" style="display:none;">
+            <h2>2. Kết quả Phân tích</h2>
+            <div id="resultsTable"></div>
+        </div>
+    </div>
+
+    <script>
+        // Lấy các element từ HTML để tương tác
+        const numGroupsInput = document.getElementById('numGroups');
+        const dynamicInputContainer = document.getElementById('dynamicInputContainer');
+        const calculateBtn = document.getElementById('calculateBtn');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const resultsTable = document.getElementById('resultsTable');
+
+        // Hàm để tạo các ô nhập liệu động
+        function generateInputFields() {
+            const numGroups = parseInt(numGroupsInput.value);
+            let html = '<h3>Thông tin các nhóm:</h3><div class="group-inputs">';
+
+            for (let i = 0; i < numGroups; i++) {
+                html += `
+                    <div class="form-group">
+                        <label>Tên Nhóm ${i + 1}</label>
+                        <input type="text" class="group-name" placeholder="VD: Không hút thuốc">
+                        <label>Số ca 'Có Bệnh'</label>
+                        <input type="number" class="group-cases" min="0" value="0">
+                        <label>Số ca 'Không Bệnh'</label>
+                        <input type="number" class="group-controls" min="0" value="0">
+                    </div>
+                `;
+            }
+            html += '</div>';
+            dynamicInputContainer.innerHTML = html;
+        }
+        
+        // Hàm tính toán chính
+        function calculateResults() {
+            // Đọc dữ liệu từ các ô input
+            const names = document.querySelectorAll('.group-name');
+            const cases = document.querySelectorAll('.group-cases');
+            const controls = document.querySelectorAll('.group-controls');
+
+            const data = [];
+            let allNamesFilled = true;
+            for (let i = 0; i < names.length; i++) {
+                const name = names[i].value.trim();
+                if (name === "") allNamesFilled = false;
+                data.push({
+                    name: name,
+                    cases: parseInt(cases[i].value),
+                    controls: parseInt(controls[i].value)
+                });
+            }
+
+            if (!allNamesFilled) {
+                alert("Vui lòng nhập tên cho tất cả các nhóm.");
+                return;
+            }
+
+            // Tạo bảng HTML để hiển thị kết quả
+            let tableHTML = `
+                <div class="form-group">
+                    <label for="referenceGroupSelect">Chọn nhóm tham chiếu:</label>
+                    <select id="referenceGroupSelect">
+                        ${data.map(d => `<option value="${d.name}">${d.name}</option>`).join('')}
+                    </select>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nhóm</th>
+                            <th>Có Bệnh</th>
+                            <th>Không Bệnh</th>
+                            <th>Odds Ratio (OR)</th>
+                            <th>95% CI (Dưới)</th>
+                            <th>95% CI (Trên)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            // Hàm để tính toán lại và cập nhật bảng
+            const updateTable = () => {
+                const refGroupName = document.getElementById('referenceGroupSelect').value;
+                const refGroup = data.find(d => d.name === refGroupName);
+
+                const ref_cases = refGroup.cases + 0.5; // Hiệu chỉnh Haldane-Anscombe
+                const ref_controls = refGroup.controls + 0.5;
+
+                let bodyHTML = '';
+                data.forEach(group => {
+                    if (group.name === refGroupName) {
+                        bodyHTML += `
+                            <tr>
+                                <td><strong>${group.name} (Ref)</strong></td>
+                                <td>${group.cases}</td>
+                                <td>${group.controls}</td>
+                                <td>1.00</td>
+                                <td>-</td>
+                                <td>-</td>
+                            </tr>
+                        `;
+                    } else {
+                        const group_cases = group.cases + 0.5;
+                        const group_controls = group.controls + 0.5;
+
+                        const oddsRatio = (group_cases * ref_controls) / (group_controls * ref_cases);
+                        const se_log_or = Math.sqrt(1/group_cases + 1/group_controls + 1/ref_cases + 1/ref_controls);
+                        const log_or = Math.log(oddsRatio);
+                        
+                        const ci_lower = Math.exp(log_or - 1.96 * se_log_or);
+                        const ci_upper = Math.exp(log_or + 1.96 * se_log_or);
+                        
+                        bodyHTML += `
+                            <tr>
+                                <td>${group.name}</td>
+                                <td>${group.cases}</td>
+                                <td>${group.controls}</td>
+                                <td>${oddsRatio.toFixed(2)}</td>
+                                <td>${ci_lower.toFixed(2)}</td>
+                                <td>${ci_upper.toFixed(2)}</td>
+                            </tr>
+                        `;
+                    }
+                });
+                // Cập nhật chỉ phần body của bảng
+                resultsTable.querySelector('tbody').innerHTML = bodyHTML;
+            };
+            
+            // Gắn nội dung ban đầu vào bảng
+            resultsTable.innerHTML = tableHTML + '</tbody></table>';
+            
+            // Gắn event listener cho dropdown để tự động cập nhật
+            document.getElementById('referenceGroupSelect').addEventListener('change', updateTable);
+            
+            // Hiển thị kết quả và chạy tính toán lần đầu
+            resultsContainer.style.display = 'block';
+            updateTable(); // Chạy lần đầu
+        }
+
+        // Gắn Event Listeners
+        numGroupsInput.addEventListener('change', generateInputFields);
+        calculateBtn.addEventListener('click', calculateResults);
+
+        // Chạy lần đầu để tạo các ô nhập liệu mặc định
+        generateInputFields();
+
+    </script>
+</body>
+</html>
