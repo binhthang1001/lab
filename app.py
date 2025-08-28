@@ -20,7 +20,6 @@ st.set_page_config(
 def to_excel(df):
     """Chuyển đổi DataFrame thành file Excel trong bộ nhớ."""
     output = io.BytesIO()
-    # Nếu df là một Styler object, lấy dữ liệu gốc
     if isinstance(df, pd.io.formats.style.Styler):
         df = df.data
     writer = pd.ExcelWriter(output, engine='xlsxwriter')
@@ -29,79 +28,92 @@ def to_excel(df):
     processed_data = output.getvalue()
     return processed_data
 
-def preprocess_data(df, dependent_var, independent_vars):
-    """Tự động xử lý biến định tính bằng cách tạo biến giả (dummy variables)."""
+def preprocess_data(df, dependent_var, independent_vars, var_types):
+    """Xử lý biến dựa trên định nghĩa của người dùng."""
     X_df = df[independent_vars]
     y = df[dependent_var]
 
-    # Tách các biến định tính và định lượng
-    categorical_vars = X_df.select_dtypes(include=['object', 'category']).columns
-    numeric_vars = X_df.select_dtypes(include=np.number).columns
+    categorical_vars = [var for var, type in var_types.items() if type == 'Định tính' and var in independent_vars]
+    numeric_vars = [var for var, type in var_types.items() if type == 'Định lượng' and var in independent_vars]
 
-    # Tạo biến giả cho các biến định tính
-    if not categorical_vars.empty:
+    X_processed = pd.DataFrame(index=X_df.index)
+
+    if numeric_vars:
+        X_processed[numeric_vars] = X_df[numeric_vars]
+
+    if categorical_vars:
         dummies = pd.get_dummies(X_df[categorical_vars], drop_first=True, dtype=int)
-        X_processed = pd.concat([X_df[numeric_vars], dummies], axis=1)
+        X_processed = pd.concat([X_processed, dummies], axis=1)
         st.info(f"Đã tự động chuyển đổi các biến định tính sau thành biến giả: {', '.join(categorical_vars)}")
-    else:
-        X_processed = X_df[numeric_vars]
-
-    X_processed = sm.add_constant(X_processed) # Thêm hằng số
+    
+    X_processed = sm.add_constant(X_processed, has_constant='add')
     return X_processed, y
 
+@st.cache_data
+def calculate_auc_ci(y_true, y_scores, n_bootstraps=1000, alpha=0.95):
+    """Tính toán khoảng tin cậy cho AUC bằng bootstrapping."""
+    bootstrapped_aucs = []
+    rng = np.random.RandomState(42)
+    y_true_arr = np.array(y_true)
+    y_scores_arr = np.array(y_scores)
+
+    for i in range(n_bootstraps):
+        indices = rng.randint(0, len(y_true_arr), len(y_true_arr))
+        if len(np.unique(y_true_arr[indices])) < 2:
+            continue
+        
+        fpr, tpr, _ = roc_curve(y_true_arr[indices], y_scores_arr[indices])
+        bootstrapped_aucs.append(auc(fpr, tpr))
+
+    sorted_aucs = np.array(bootstrapped_aucs)
+    sorted_aucs.sort()
+    
+    lower_percentile = (1.0 - alpha) / 2.0 * 100
+    upper_percentile = (alpha + (1.0 - alpha) / 2.0) * 100
+    lower_bound = np.percentile(sorted_aucs, lower_percentile)
+    upper_bound = np.percentile(sorted_aucs, upper_percentile)
+    
+    return lower_bound, upper_bound
 
 # --- Hàm tính toán & Phân tích ---
 
 def get_descriptive_stats(df):
-    """Tạo thống kê mô tả cho dữ liệu."""
     return df.describe(include='all')
 
 def run_linear_regression(X, y):
-    """Thực hiện hồi quy tuyến tính và trả về kết quả."""
     model = sm.OLS(y, X).fit()
     return model
 
 def run_logistic_regression(X, y):
-    """Thực hiện hồi quy logistic và trả về kết quả."""
     if not all(y.isin([0, 1])):
-        st.error(f"Lỗi: Biến phụ thuộc cho Hồi quy Logistic phải là biến nhị phân (chỉ chứa giá trị 0 và 1).")
+        st.error(f"Lỗi: Biến phụ thuộc cho Hồi quy Logistic phải là biến nhị phân (0/1).")
         return None
     model = sm.Logit(y, X).fit()
     return model
 
 def get_linear_summary_df(model):
-    """Tạo DataFrame tóm tắt kết quả cho Hồi quy Tuyến tính."""
-    summary_df = pd.DataFrame({
-        'Hệ số': model.params,
-        'Sai số chuẩn': model.bse,
-        't-value': model.tvalues,
-        'p-value': model.pvalues
-    })
+    summary_df = pd.DataFrame({'Hệ số': model.params, 'Sai số chuẩn': model.bse, 't-value': model.tvalues, 'p-value': model.pvalues})
     conf_int = model.conf_int()
     summary_df['CI 2.5%'] = conf_int[0]
     summary_df['CI 97.5%'] = conf_int[1]
     return summary_df
 
 def get_logistic_summary_df(model):
-    """Tạo DataFrame tóm tắt kết quả cho Hồi quy Logistic với Odds Ratios."""
     params = model.params
     conf = model.conf_int()
     conf['Odds Ratio'] = params
     conf.columns = ['CI 2.5%', 'CI 97.5%', 'Odds Ratio']
     conf = np.exp(conf)
-    
     p_values = model.pvalues
-    summary_df = pd.DataFrame({
-        'p-value': p_values
-    })
+    summary_df = pd.DataFrame({'p-value': p_values})
     summary_df = conf.join(summary_df)
     summary_df = summary_df[['Odds Ratio', 'CI 2.5%', 'CI 97.5%', 'p-value']]
     return summary_df
 
 # --- Giao diện ứng dụng ---
 
-st.title("📊 Công cụ Phân tích Hồi quy Tuyến tính & Logistic")
-st.write("Tải lên file CSV của bạn, chọn các biến và loại mô hình để xem kết quả phân tích chi tiết.")
+st.title("📊 Công cụ Phân tích Hồi quy")
+st.write("Tải lên file CSV, định nghĩa biến, chọn mô hình và xem kết quả phân tích chi tiết.")
 
 with st.sidebar:
     st.header("1. Tải dữ liệu lên")
@@ -119,27 +131,36 @@ with st.sidebar:
         st.info("Vui lòng tải lên một file CSV để bắt đầu.")
 
 if df is not None:
-    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     all_cols = df.columns.tolist()
 
     with st.sidebar:
-        st.header("2. Lựa chọn Mô hình & Biến số")
-        model_type = st.radio(
-            "Chọn loại mô hình:",
-            ('Hồi quy Tuyến tính (Linear Regression)', 'Hồi quy Logistic (Logistic Regression)')
-        )
+        st.header("2. Định nghĩa loại biến số")
+        var_types = {}
+        with st.expander("Nhấp để định nghĩa loại cho từng biến"):
+            for col in all_cols:
+                # Tự động đoán loại biến
+                is_numeric = pd.api.types.is_numeric_dtype(df[col])
+                is_binary_numeric = is_numeric and df[col].nunique() == 2 and df[col].min() == 0 and df[col].max() == 1
+                
+                default_type = 'Định lượng' if is_numeric and not is_binary_numeric else 'Định tính'
+                
+                var_types[col] = st.radio(f"Loại của biến '{col}':", ('Định lượng', 'Định tính'), index=0 if default_type == 'Định lượng' else 1, key=f"type_{col}", horizontal=True)
+        
+        st.markdown("---")
+        st.header("3. Lựa chọn Mô hình & Biến số")
+        model_type = st.radio("Chọn loại mô hình:", ('Hồi quy Tuyến tính (Linear Regression)', 'Hồi quy Logistic (Logistic Regression)'))
 
+        # Lọc các biến phù hợp cho Y
+        numeric_vars_for_y = [var for var, type in var_types.items() if type == 'Định lượng']
+        
         if model_type == 'Hồi quy Tuyến tính (Linear Regression)':
-            dependent_var = st.selectbox("Chọn biến phụ thuộc (Y):", options=numeric_cols)
+            dependent_var = st.selectbox("Chọn biến phụ thuộc (Y):", options=numeric_vars_for_y)
         else:
             dependent_var = st.selectbox("Chọn biến phụ thuộc (Y):", options=all_cols, help="Phải là biến nhị phân (0/1).")
 
         available_indep_vars = [col for col in all_cols if col != dependent_var]
-        independent_vars = st.multiselect(
-            "Chọn các biến độc lập (X):",
-            options=available_indep_vars,
-            default=available_indep_vars[0] if available_indep_vars else None
-        )
+        independent_vars = st.multiselect("Chọn các biến độc lập (X):", options=available_indep_vars, default=available_indep_vars[0] if available_indep_vars else None)
+        
         st.markdown("---")
         analyze_button = st.button("Thực hiện Phân tích", type="primary")
 
@@ -153,7 +174,7 @@ if df is not None:
             df_analysis = df[selected_cols].dropna()
             
             if len(df_analysis) < len(df):
-                st.info(f"Đã loại bỏ {len(df) - len(df_analysis)} dòng có giá trị thiếu (missing values).")
+                st.info(f"Đã loại bỏ {len(df) - len(df_analysis)} dòng có giá trị thiếu.")
 
             tab1, tab2, tab3, tab4 = st.tabs(["Xem trước Dữ liệu", "Thống kê Mô tả", "Kết quả Mô hình", "Trực quan hóa"])
 
@@ -168,22 +189,14 @@ if df is not None:
             with tab3:
                 st.subheader("Kết quả Hồi quy")
                 try:
-                    # Tiền xử lý dữ liệu
-                    X_processed, y_processed = preprocess_data(df_analysis, dependent_var, independent_vars)
+                    X_processed, y_processed = preprocess_data(df_analysis, dependent_var, independent_vars, var_types)
 
                     if model_type == 'Hồi quy Tuyến tính (Linear Regression)':
                         model = run_linear_regression(X_processed, y_processed)
                         results_df = get_linear_summary_df(model)
-                        
                         st.subheader("Bảng Hệ số Hồi quy")
                         st.dataframe(results_df.style.format('{:.4f}'))
-                        
-                        st.download_button(
-                            label="📥 Tải xuống dưới dạng Excel",
-                            data=to_excel(results_df),
-                            file_name='linear_regression_results.xlsx'
-                        )
-                        
+                        st.download_button(label="📥 Tải xuống Excel", data=to_excel(results_df), file_name='linear_regression.xlsx')
                         st.subheader("Độ phù hợp của Mô hình")
                         col1, col2 = st.columns(2)
                         col1.metric("R-squared", f"{model.rsquared:.4f}")
@@ -195,13 +208,7 @@ if df is not None:
                             results_df = get_logistic_summary_df(model)
                             st.subheader("Bảng Tỷ số chênh (Odds Ratios)")
                             st.dataframe(results_df.style.format('{:.4f}'))
-                            
-                            st.download_button(
-                                label="📥 Tải xuống dưới dạng Excel",
-                                data=to_excel(results_df),
-                                file_name='logistic_regression_results.xlsx'
-                            )
-
+                            st.download_button(label="📥 Tải xuống Excel", data=to_excel(results_df), file_name='logistic_regression.xlsx')
                             st.subheader("Độ phù hợp của Mô hình")
                             st.metric("Pseudo R-squ.", f"{model.prsquared:.4f}")
 
@@ -211,18 +218,12 @@ if df is not None:
             with tab4:
                 st.subheader("Biểu đồ Minh họa")
                 try:
-                    X_processed, y_processed = preprocess_data(df_analysis, dependent_var, independent_vars)
+                    X_processed, y_processed = preprocess_data(df_analysis, dependent_var, independent_vars, var_types)
                     
                     if model_type == 'Hồi quy Tuyến tính (Linear Regression)':
                         model = run_linear_regression(X_processed, y_processed)
                         df_analysis['predicted'] = model.predict(X_processed)
-                        
-                        fig = px.scatter(
-                            df_analysis, x=dependent_var, y='predicted',
-                            title='Biểu đồ phân tán: Giá trị Thực tế vs. Dự đoán',
-                            labels={dependent_var: 'Giá trị Thực tế', 'predicted': 'Giá trị Dự đoán'},
-                            trendline='ols', trendline_color_override='red'
-                        )
+                        fig = px.scatter(df_analysis, x=dependent_var, y='predicted', title='Biểu đồ phân tán: Giá trị Thực tế vs. Dự đoán', labels={dependent_var: 'Giá trị Thực tế', 'predicted': 'Giá trị Dự đoán'}, trendline='ols', trendline_color_override='red')
                         st.plotly_chart(fig, use_container_width=True)
                         
                     else: # Logistic Regression
@@ -231,14 +232,15 @@ if df is not None:
                             y_prob = model.predict(X_processed)
                             fpr, tpr, _ = roc_curve(y_processed, y_prob)
                             roc_auc = auc(fpr, tpr)
-
-                            fig = go.Figure(data=go.Scatter(x=fpr, y=tpr, mode='lines', name=f'ROC curve (AUC = {roc_auc:.2f})'))
-                            fig.add_shape(type='line', line=dict(dash='dash'), x0=0, x1=1, y0=0, y1=1)
-                            fig.update_layout(
-                                title_text='Đường cong ROC (Receiver Operating Characteristic)',
-                                xaxis_title='Tỷ lệ Dương tính Giả', yaxis_title='Tỷ lệ Dương tính Thật'
+                            
+                            # Tính 95% CI cho AUC
+                            auc_lower, auc_upper = calculate_auc_ci(y_processed, y_prob)
+                            
+                            st.metric(
+                                label="Area Under Curve (AUC)", 
+                                value=f"{roc_auc:.4f}",
+                                help=f"Khoảng tin cậy 95% cho AUC: ({auc_lower:.4f} - {auc_upper:.4f})"
                             )
-                            st.plotly_chart(fig, use_container_width=True)
 
-                except Exception as e:
-                    st.error(f"Đã xảy ra lỗi khi tạo biểu đồ: {e}")
+                            fig = go.Figure(data=go.Scatter(x=fpr, y=tpr, mode='lines', name=f'ROC curve'))
+                            fig.add_shape(type='line', line=dict(dash='dash'), x0=0, x1=1, 
